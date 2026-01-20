@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智存 - 现代会计档案管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #00f2fe;
+            --secondary: #4facfe;
+            --dark: #0f172a;
+            --accent: #8b5cf6;
+        }
+
+        body {
+            background-color: var(--dark);
+            color: #e2e8f0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+        }
+
+        .neo-gradient {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+        }
+
+        .neo-glow {
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+        }
+
+        .input-field {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 8px rgba(0, 242, 254, 0.2);
+            outline: none;
+        }
+
+        .table-row:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .merged-cell {
+            vertical-align: middle;
+            text-align: center;
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .scroll-hidden::-webkit-scrollbar {
+            display: none;
+        }
+
+        #clipboard-helper {
+            position: absolute;
+            left: -9999px;
+            top: 0;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+    <textarea id="clipboard-helper"></textarea>
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+                    <span class="p-2 neo-gradient rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                        </svg>
+                    </span>
+                    智存 <span class="text-transparent bg-clip-text neo-gradient text-xl font-medium">Archive Manager</span>
+                </h1>
+                <p class="text-slate-400 mt-1">云端会计档案管理系统</p>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="toggleModal('import-modal')" class="bg-slate-800 text-slate-300 border border-slate-700 px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 hover:bg-slate-700 transition-all">
+                    批量导入
+                </button>
+                <button onclick="openEntryModal()" class="neo-gradient neo-glow text-slate-900 px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                    </svg>
+                    单条录入
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="glass-panel p-5">
+                <p class="text-slate-400 text-sm">移交总卷数 (全历史)</p>
+                <h3 class="text-3xl font-black mt-1 text-white" id="stat-total-volumes">0</h3>
+            </div>
+            <div class="glass-panel p-5 border-b-4 border-cyan-500 col-span-1 md:col-span-2">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-3 gap-2">
+                    <div>
+                        <p class="text-slate-400 text-xs">年度范围筛选量</p>
+                        <h3 class="text-2xl font-black text-white" id="stat-period-volumes">0 <span class="text-xs font-normal text-slate-500 ml-1">卷</span></h3>
+                    </div>
+                    <div class="flex items-center gap-2 bg-slate-800/50 p-1.5 rounded-lg border border-white/5">
+                        <select id="start-year" onchange="renderTable()" class="bg-transparent text-cyan-400 text-[10px] font-bold outline-none cursor-pointer"></select>
+                        <span class="text-slate-600 text-[10px]">至</span>
+                        <select id="end-year" onchange="renderTable()" class="bg-transparent text-cyan-400 text-[10px] font-bold outline-none cursor-pointer"></select>
+                    </div>
+                </div>
+                <div id="month-stats-container" class="flex gap-2 overflow-x-auto pb-1 pt-1 scroll-hidden border-t border-white/5 mt-1">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+            <div class="glass-panel p-5 grid grid-cols-2 gap-2">
+                <div>
+                    <p class="text-slate-400 text-[10px] uppercase">范围项目数</p>
+                    <h3 class="text-2xl font-black text-cyan-400" id="stat-project-count">0</h3>
+                </div>
+                <div class="border-l border-white/10 pl-3">
+                    <p class="text-slate-400 text-[10px] uppercase">范围账套数</p>
+                    <h3 class="text-2xl font-black text-blue-400" id="stat-org-count">0</h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table Section -->
+        <div class="glass-panel overflow-hidden">
+            <div class="p-6 border-b border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-4 w-full md:w-auto">
+                    <h2 class="text-lg font-bold text-white whitespace-nowrap">档案清单</h2>
+                    <div class="relative w-full md:w-64">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        </span>
+                        <input type="text" id="search-input" oninput="renderTable()" placeholder="搜索项目名称..." class="w-full bg-white/5 border border-white/10 rounded-full py-1.5 pl-10 pr-4 text-sm focus:outline-none focus:border-cyan-500/50 transition-all text-white">
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="copyToExcel()" class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-lg hover:bg-emerald-500 hover:text-white transition-all">导出当前列表</button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead class="bg-white/5 text-slate-400 text-[10px] uppercase tracking-wider">
+                        <tr>
+                            <th class="px-6 py-4">项目部名称</th>
+                            <th class="px-6 py-4">账套组织机构</th>
+                            <th class="px-6 py-4 text-center">二级核算</th>
+                            <th class="px-6 py-4 font-bold text-cyan-400">卷数</th>
+                            <th class="px-6 py-4 text-center">会计年度/期间</th>
+                            <th class="px-6 py-4">完成日期</th>
+                            <th class="px-6 py-4">联系人</th>
+                            <th class="px-6 py-4">存放位置</th>
+                            <th class="px-6 py-4 text-right">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archive-table-body" class="divide-y divide-white/5"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: 录入/编辑 -->
+    <div id="archive-modal" class="fixed inset-0 bg-dark/95 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel w-full max-w-2xl overflow-hidden shadow-2xl">
+            <div class="p-6 border-b border-white/10 flex justify-between items-center text-white">
+                <h3 class="text-xl font-bold" id="modal-title">档案录入</h3>
+                <button onclick="toggleModal('archive-modal')" class="text-slate-400 hover:text-white">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <form id="archive-form" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-5 text-white">
+                <input type="hidden" name="id" id="modal-id">
+                <div class="col-span-full">
+                    <label class="block text-xs text-slate-500 mb-1">是否二级核算项目</label>
+                    <select name="isSecondary" id="modal-is-secondary" class="w-full input-field p-2.5 rounded-lg text-white bg-slate-900" onchange="toggleFormMode()">
+                        <option value="否">否</option>
+                        <option value="是">是</option>
+                    </select>
+                </div>
+                <div id="single-inputs" class="col-span-full grid grid-cols-2 gap-5">
+                    <div class="col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">项目部名称</label>
+                        <input type="text" name="projectName" id="modal-project-name" class="w-full input-field p-2.5 rounded-lg text-white" placeholder="项目全称">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">账套组织机构</label>
+                        <select name="orgName" id="modal-org-name" class="w-full input-field p-2.5 rounded-lg text-white bg-slate-900">
+                            <option value="母公司">母公司</option>
+                            <option value="子公司">子公司</option>
+                        </select>
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">移交卷数</label>
+                        <input type="number" name="volumeCount" id="modal-volume-count" class="w-full input-field p-2.5 rounded-lg">
+                    </div>
+                </div>
+                <div id="secondary-inputs" class="col-span-full hidden grid grid-cols-2 gap-5 border-y border-white/5 py-4 my-2">
+                    <div class="col-span-1 space-y-4 border-r border-white/5 pr-4">
+                        <h4 class="text-xs font-bold text-blue-400">母公司侧</h4>
+                        <input type="text" name="projectNameMu" id="modal-project-mu" class="w-full input-field p-2 rounded-lg text-xs" placeholder="母公司侧名称">
+                        <input type="number" name="volumeCountMu" id="modal-volume-mu" class="w-full input-field p-2 rounded-lg text-xs" placeholder="卷数">
+                    </div>
+                    <div class="col-span-1 space-y-4 pl-4">
+                        <h4 class="text-xs font-bold text-cyan-400">子公司侧</h4>
+                        <input type="text" name="projectNameZi" id="modal-project-zi" class="w-full input-field p-2 rounded-lg text-xs" placeholder="子公司侧名称">
+                        <input type="number" name="volumeCountZi" id="modal-volume-zi" class="w-full input-field p-2 rounded-lg text-xs" placeholder="卷数">
+                    </div>
+                </div>
+                <div class="col-span-1">
+                    <label class="block text-xs text-slate-500 mb-1">会计年度</label>
+                    <input type="text" name="fiscalYear" id="modal-fiscal-year" required class="w-full input-field p-2.5 rounded-lg" placeholder="2024">
+                </div>
+                <div class="col-span-1">
+                    <label class="block text-xs text-slate-500 mb-1">完成日期 (支持各种格式粘贴)</label>
+                    <div class="relative">
+                        <input type="text" name="completionDate" id="modal-completion-date" required 
+                               class="w-full input-field p-2.5 rounded-lg pr-10" 
+                               placeholder="YYYY-MM-DD"
+                               onpaste="handleDatePaste(event)"
+                               onblur="validateAndFormatDate(this)">
+                        <div class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-span-1">
+                    <label class="block text-xs text-slate-500 mb-1">联系人</label>
+                    <input type="text" name="contactPerson" id="modal-contact" required class="w-full input-field p-2.5 rounded-lg">
+                </div>
+                <div class="col-span-1">
+                    <label class="block text-xs text-slate-500 mb-1">存放位置</label>
+                    <input type="text" name="location" id="modal-location" required class="w-full input-field p-2.5 rounded-lg">
+                </div>
+                <div class="col-span-full pt-4">
+                    <button type="submit" class="w-full neo-gradient p-3 rounded-xl text-dark font-bold hover:neo-glow transition-all">保存更改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 批量导入 -->
+    <div id="import-modal" class="fixed inset-0 bg-dark/95 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel w-full max-w-2xl overflow-hidden shadow-2xl">
+            <div class="p-6 border-b border-white/10 flex justify-between items-center text-white">
+                <div>
+                    <h3 class="text-xl font-bold">批量数据导入</h3>
+                    <p class="text-xs text-slate-500">从 Excel 复制数据并粘贴到下方</p>
+                </div>
+                <button onclick="toggleModal('import-modal')" class="text-slate-400 hover:text-white">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <div class="mb-4 flex justify-between items-center">
+                    <span class="text-xs text-slate-400 italic">模板列顺序：项目名称 | 账套(母/子) | 是否二级核算(是/否) | 卷数 | 年度 | 完成日期 | 联系人 | 位置</span>
+                    <button onclick="downloadTemplate()" class="text-xs text-cyan-400 underline">获取粘贴模板</button>
+                </div>
+                <textarea id="import-area" class="w-full h-64 input-field p-4 rounded-xl font-mono text-sm" placeholder="在此处粘贴 Excel 数据..."></textarea>
+                <div class="mt-6 flex gap-3">
+                    <button onclick="processImport()" class="flex-1 neo-gradient p-3 rounded-xl text-dark font-bold hover:neo-glow transition-all">开始解析并导入</button>
+                    <button onclick="toggleModal('import-modal')" class="px-6 py-3 border border-slate-700 rounded-xl text-slate-400">取消</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="toast" class="fixed bottom-8 right-8 glass-panel p-4 border-l-4 border-cyan-500 transform translate-y-20 opacity-0 transition-all duration-300 z-[60] text-white">
+        <p class="text-sm font-bold" id="toast-msg">操作成功</p>
+    </div>
+
+    <script>
+        // 初始化数据
+        let archives = [
+            { id: 1, projectName: "华东大区总部", orgName: "母公司", isSecondary: "否", volumeCount: 45, fiscalYear: "2024", completionDate: "2024-11-10", contactPerson: "李嘉诚", location: "库房A1" },
+            { id: 101, projectName: "深圳湾壹号(母)", orgName: "母公司", isSecondary: "是", volumeCount: 40, fiscalYear: "2025", completionDate: "2025-01-05", contactPerson: "王兴", location: "库房C1", groupKey: "G1" },
+            { id: 102, projectName: "深圳湾壹号(子)", orgName: "子公司", isSecondary: "是", volumeCount: 4, fiscalYear: "2025", completionDate: "2025-01-05", contactPerson: "王兴", location: "库房C1", groupKey: "G1" },
+            { id: 2, projectName: "西南分公司", orgName: "母公司", isSecondary: "否", volumeCount: 20, fiscalYear: "2023", completionDate: "2023-12-20", contactPerson: "周鸿祎", location: "库房B2" },
+            { id: 3, projectName: "东北办事处", orgName: "母公司", isSecondary: "否", volumeCount: 15, fiscalYear: "2022", completionDate: "2022-10-15", contactPerson: "丁磊", location: "库房D3" }
+        ];
+
+        // --- 增强日期处理逻辑 ---
+        
+        /**
+         * 智能解析日期字符串
+         */
+        function parseSmartDate(str) {
+            if (!str) return "";
+            let s = str.trim();
+            if (/^\d{8}$/.test(s)) {
+                return `${s.substring(0,4)}-${s.substring(4,6)}-${s.substring(6,8)}`;
+            }
+            s = s.replace(/[\.\/]/g, '-');
+            const parts = s.split('-');
+            if (parts.length === 3) {
+                let y = parts[0];
+                let m = parts[1].padStart(2, '0');
+                let d = parts[2].padStart(2, '0');
+                if (y.length === 2) y = "20" + y; 
+                const finalDate = `${y}-${m}-${d}`;
+                if (!isNaN(Date.parse(finalDate))) {
+                    return finalDate;
+                }
+            }
+            return s;
+        }
+
+        function handleDatePaste(e) {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            const formatted = parseSmartDate(text);
+            e.target.value = formatted;
+        }
+
+        function validateAndFormatDate(el) {
+            const formatted = parseSmartDate(el.value);
+            if (formatted && /^\d{4}-\d{2}-\d{2}$/.test(formatted)) {
+                el.value = formatted;
+            }
+        }
+
+        // --- 核心初始化与渲染逻辑 ---
+
+        /**
+         * 初始化年份下拉框：确保 start-year 和 end-year 包含所有数据中的年份
+         */
+        function initYearFilters() {
+            const startSelect = document.getElementById('start-year');
+            const endSelect = document.getElementById('end-year');
+            
+            // 获取数据中所有的年份
+            const allYears = [...new Set(archives.map(a => a.completionDate.substring(0, 4)))].sort((a,b) => a - b);
+            
+            if (allYears.length === 0) {
+                const currentYear = new Date().getFullYear().toString();
+                allYears.push(currentYear);
+            }
+
+            const options = allYears.map(y => `<option value="${y}">${y}</option>`).join('');
+            startSelect.innerHTML = options;
+            endSelect.innerHTML = options;
+
+            // 默认选中：起始年份为最早，结束年份为最晚
+            startSelect.value = allYears[0];
+            endSelect.value = allYears[allYears.length - 1];
+        }
+
+        function updateDashboard(currentData) {
+            // 总体卷数基于所有数据
+            const totalVolumes = archives.reduce((a, b) => a + parseInt(b.volumeCount || 0), 0);
+            document.getElementById('stat-total-volumes').innerText = totalVolumes;
+
+            // 筛选后的卷数
+            const periodVolumes = currentData.reduce((a, b) => a + parseInt(b.volumeCount || 0), 0);
+            document.getElementById('stat-period-volumes').innerText = periodVolumes;
+
+            // 统计项目数和账套数
+            const projectKeys = new Set();
+            currentData.forEach(a => {
+                if (a.isSecondary === '是') projectKeys.add(a.groupKey);
+                else projectKeys.add('P_' + a.id);
+            });
+            document.getElementById('stat-project-count').innerText = projectKeys.size;
+            document.getElementById('stat-org-count').innerText = currentData.length;
+
+            // 月度统计
+            const monthStats = Array.from({length: 12}, (_, i) => ({ month: i + 1, count: 0 }));
+            currentData.forEach(item => {
+                const m = parseInt(item.completionDate.substring(5, 7));
+                if (m >= 1 && m <= 12) monthStats[m-1].count += parseInt(item.volumeCount);
+            });
+            const monthContainer = document.getElementById('month-stats-container');
+            monthContainer.innerHTML = monthStats.map(s => `
+                <div class="flex-shrink-0 bg-white/5 border border-white/10 rounded-lg p-2 min-w-[50px] text-center">
+                    <p class="text-[9px] text-slate-500 uppercase">${s.month}月</p>
+                    <p class="text-xs font-bold ${s.count > 0 ? 'text-cyan-400' : 'text-slate-600'}">${s.count}</p>
+                </div>
+            `).join('');
+        }
+
+        function renderTable() {
+            const startYear = document.getElementById('start-year').value;
+            const endYear = document.getElementById('end-year').value;
+            const searchTerm = document.getElementById('search-input').value.trim().toLowerCase();
+            
+            // 自动修正非法范围
+            if (parseInt(startYear) > parseInt(endYear)) {
+                document.getElementById('end-year').value = startYear;
+            }
+
+            const sY = parseInt(document.getElementById('start-year').value);
+            const eY = parseInt(document.getElementById('end-year').value);
+
+            let filtered = archives.filter(a => {
+                const year = parseInt(a.completionDate.substring(0, 4));
+                const inRange = year >= sY && year <= eY;
+                const matchesSearch = !searchTerm || a.projectName.toLowerCase().includes(searchTerm);
+                return inRange && matchesSearch;
+            });
+
+            updateDashboard(filtered);
+
+            const tbody = document.getElementById('archive-table-body');
+            tbody.innerHTML = '';
+            
+            const groups = [];
+            filtered.forEach(item => {
+                const key = (item.isSecondary === '是') ? item.groupKey : ('S_' + item.id);
+                let group = groups.find(g => g.key === key);
+                if (!group) {
+                    group = { key: key, items: [] };
+                    groups.push(group);
+                }
+                group.items.push(item);
+            });
+
+            groups.reverse().forEach(group => {
+                group.items.forEach((item, index) => {
+                    const tr = document.createElement('tr');
+                    tr.className = "table-row";
+                    let html = `
+                        <td class="px-6 py-4 font-medium text-slate-200 text-sm">${item.projectName}</td>
+                        <td class="px-6 py-4">
+                            <span class="text-[9px] px-2 py-0.5 rounded border ${item.orgName === '母公司' ? 'border-blue-500/30 text-blue-400 bg-blue-500/5' : 'border-cyan-500/30 text-cyan-400 bg-cyan-500/5'}">
+                                ${item.orgName}
+                            </span>
+                        </td>
+                    `;
+                    if (index === 0) {
+                        html += `
+                            <td class="px-6 py-4 merged-cell font-bold text-xs ${item.isSecondary === '是' ? 'text-cyan-400' : 'text-slate-700'}" rowspan="${group.items.length}">
+                                ${item.isSecondary === '是' ? '二级核算' : '普通'}
+                            </td>
+                        `;
+                    }
+                    html += `
+                        <td class="px-6 py-4 text-cyan-400 font-mono font-bold">${item.volumeCount}</td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="text-slate-200 text-sm">${item.fiscalYear}</div>
+                            <div class="text-[10px] text-slate-500">${item.completionDate.substring(5,7)}月</div>
+                        </td>
+                        <td class="px-6 py-4 text-slate-400 text-xs">${item.completionDate}</td>
+                        <td class="px-6 py-4 text-slate-400 text-sm">${item.contactPerson}</td>
+                        <td class="px-6 py-4 text-slate-400 text-xs">${item.location}</td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end gap-2">
+                                <button onclick="editEntry(${item.id})" class="text-slate-600 hover:text-cyan-400 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                </button>
+                                <button onclick="deleteEntry(${item.id})" class="text-slate-700 hover:text-red-500 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tr.innerHTML = html;
+                    tbody.appendChild(tr);
+                });
+            });
+        }
+
+        // --- 业务功能函数 ---
+
+        function toggleModal(id) {
+            document.getElementById(id).classList.toggle('hidden');
+        }
+
+        function toggleFormMode() {
+            const isSec = document.getElementById('modal-is-secondary').value === '是';
+            document.getElementById('single-inputs').classList.toggle('hidden', isSec);
+            document.getElementById('secondary-inputs').classList.toggle('hidden', !isSec);
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            t.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => t.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+
+        function openEntryModal(id = null) {
+            const form = document.getElementById('archive-form');
+            form.reset();
+            document.getElementById('modal-id').value = id || '';
+            document.getElementById('modal-title').innerText = id ? '修改档案' : '档案录入';
+
+            if (id) {
+                const item = archives.find(a => a.id === id);
+                if (item) {
+                    document.getElementById('modal-is-secondary').value = item.isSecondary;
+                    document.getElementById('modal-fiscal-year').value = item.fiscalYear;
+                    document.getElementById('modal-completion-date').value = item.completionDate;
+                    document.getElementById('modal-contact').value = item.contactPerson;
+                    document.getElementById('modal-location').value = item.location;
+
+                    if (item.isSecondary === '是') {
+                        const related = archives.filter(a => a.groupKey === item.groupKey);
+                        const mu = related.find(a => a.orgName === '母公司');
+                        const zi = related.find(a => a.orgName === '子公司');
+                        document.getElementById('modal-project-mu').value = mu?.projectName || '';
+                        document.getElementById('modal-volume-mu').value = mu?.volumeCount || 0;
+                        document.getElementById('modal-project-zi').value = zi?.projectName || '';
+                        document.getElementById('modal-volume-zi').value = zi?.volumeCount || 0;
+                    } else {
+                        document.getElementById('modal-project-name').value = item.projectName;
+                        document.getElementById('modal-org-name').value = item.orgName;
+                        document.getElementById('modal-volume-count').value = item.volumeCount;
+                    }
+                }
+            }
+            toggleFormMode();
+            toggleModal('archive-modal');
+        }
+
+        function editEntry(id) {
+            openEntryModal(id);
+        }
+
+        document.getElementById('archive-form').onsubmit = function(e) {
+            e.preventDefault();
+            const f = new FormData(this);
+            const id = f.get('id');
+            const isSec = f.get('isSecondary');
+            const formattedDate = parseSmartDate(f.get('completionDate'));
+
+            const shared = {
+                fiscalYear: f.get('fiscalYear'),
+                completionDate: formattedDate,
+                contactPerson: f.get('contactPerson'),
+                location: f.get('location'),
+                isSecondary: isSec
+            };
+
+            if (id) {
+                const oldItem = archives.find(a => a.id == id);
+                if (isSec === '是') {
+                    const gKey = oldItem.groupKey || ("G" + Date.now());
+                    archives = archives.filter(a => a.groupKey !== oldItem.groupKey);
+                    archives.push({ ...shared, id: Date.now() + 1, projectName: f.get('projectNameMu'), volumeCount: f.get('volumeCountMu'), orgName: '母公司', groupKey: gKey });
+                    archives.push({ ...shared, id: Date.now() + 2, projectName: f.get('projectNameZi'), volumeCount: f.get('volumeCountZi'), orgName: '子公司', groupKey: gKey });
+                } else {
+                    if (oldItem.isSecondary === '是') archives = archives.filter(a => a.groupKey !== oldItem.groupKey);
+                    else archives = archives.filter(a => a.id != id);
+                    archives.push({ ...shared, id: Date.now(), projectName: f.get('projectName'), volumeCount: f.get('volumeCount'), orgName: f.get('orgName') });
+                }
+            } else {
+                if (isSec === '是') {
+                    const gKey = "G" + Date.now();
+                    archives.push({ ...shared, id: Date.now() + 1, projectName: f.get('projectNameMu'), volumeCount: f.get('volumeCountMu'), orgName: '母公司', groupKey: gKey });
+                    archives.push({ ...shared, id: Date.now() + 2, projectName: f.get('projectNameZi'), volumeCount: f.get('volumeCountZi'), orgName: '子公司', groupKey: gKey });
+                } else {
+                    archives.push({ ...shared, id: Date.now(), projectName: f.get('projectName'), volumeCount: f.get('volumeCount'), orgName: f.get('orgName') });
+                }
+            }
+            initYearFilters();
+            renderTable();
+            toggleModal('archive-modal');
+            showToast("操作成功");
+        };
+
+        function deleteEntry(id) {
+            const item = archives.find(a => a.id === id);
+            if(item && item.isSecondary === '是') archives = archives.filter(a => a.groupKey !== item.groupKey);
+            else archives = archives.filter(a => a.id !== id);
+            initYearFilters();
+            renderTable();
+            showToast("已移除记录");
+        }
+
+        function processImport() {
+            const text = document.getElementById('import-area').value.trim();
+            if (!text) return;
+            const rows = text.split('\n');
+            rows.forEach((row, rowIndex) => {
+                const cols = row.split('\t').map(c => c.trim());
+                if (cols.length < 5) return;
+                archives.push({
+                    id: Date.now() + rowIndex,
+                    projectName: cols[0],
+                    orgName: cols[1].includes('母') ? '母公司' : '子公司',
+                    isSecondary: cols[2] === '是' ? '是' : '否',
+                    volumeCount: parseInt(cols[3]) || 0,
+                    fiscalYear: cols[4],
+                    completionDate: parseSmartDate(cols[5]),
+                    contactPerson: cols[6],
+                    location: cols[7]
+                });
+            });
+            initYearFilters();
+            renderTable();
+            toggleModal('import-modal');
+            showToast("导入完成");
+        }
+
+        function copyToExcel() {
+            const header = "项目部名称\t账套组织机构\t二级核算\t卷数\t会计年度\t完成日期\t联系人\t存放位置\n";
+            const helper = document.getElementById('clipboard-helper');
+            helper.value = header + archives.map(i => `${i.projectName}\t${i.orgName}\t${i.isSecondary}\t${i.volumeCount}\t${i.fiscalYear}\t${i.completionDate}\t${i.contactPerson}\t${i.location}`).join('\n');
+            helper.select();
+            document.execCommand('copy');
+            showToast("已复制到剪贴板");
+        }
+
+        // 页面加载启动顺序：先初始化年份筛选，再渲染数据
+        window.onload = function() {
+            initYearFilters();
+            renderTable();
+        };
+    </script>
+</body>
+</html>
