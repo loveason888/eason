@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金融信息管理终端</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --secondary: #3b82f6;
+            --accent: #60a5fa;
+            --bg: #f8fafc;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(30, 58, 138, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.05) 0px, transparent 50%);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+
+        .copy-toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+        }
+
+        .copy-toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .data-row:hover .copy-btn {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- 头部 -->
+        <header class="mb-10 text-center md:text-left flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-6">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3 justify-center md:justify-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-blue-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3Z"/></svg>
+                    金融信息管理终端
+                </h1>
+                <p class="text-slate-500 mt-2">安全、快速、高效的财务办公辅助系统</p>
+            </div>
+            <div class="flex gap-2 justify-center">
+                <button onclick="clearAllData()" class="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    清空本地缓存
+                </button>
+            </div>
+        </header>
+
+        <!-- 三模块布局 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+            
+            <!-- 模块一：银行账户信息 -->
+            <section class="space-y-6">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-semibold text-slate-700 flex items-center gap-2">
+                        <span class="w-2 h-6 bg-blue-900 rounded-full"></span>
+                        银行账户信息
+                    </h2>
+                    <button onclick="showModal('bank')" class="bg-blue-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-800 transition-all shadow-lg shadow-blue-900/20">
+                        + 添加账户
+                    </button>
+                </div>
+                <div id="bankList" class="space-y-4"></div>
+            </section>
+
+            <!-- 模块二：久其账套信息 -->
+            <section class="space-y-6">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-semibold text-slate-700 flex items-center gap-2">
+                        <span class="w-2 h-6 bg-indigo-600 rounded-full"></span>
+                        久其账套信息
+                    </h2>
+                    <button onclick="showModal('jiuqi')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20">
+                        + 添加账套
+                    </button>
+                </div>
+                <div id="jiuqiList" class="space-y-4"></div>
+            </section>
+
+            <!-- 模块三：报表服务器 -->
+            <section class="space-y-6">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-semibold text-slate-700 flex items-center gap-2">
+                        <span class="w-2 h-6 bg-emerald-600 rounded-full"></span>
+                        报表服务器
+                    </h2>
+                    <button onclick="showModal('server')" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/20">
+                        + 添加服务器
+                    </button>
+                </div>
+                <div id="serverList" class="space-y-4"></div>
+            </section>
+        </div>
+    </div>
+
+    <!-- 添加弹窗 -->
+    <div id="modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <h3 id="modalTitle" class="text-xl font-bold mb-4 text-slate-800">添加信息</h3>
+            <form id="infoForm" class="space-y-4">
+                <input type="hidden" id="formType">
+                <div id="formFields" class="space-y-4"></div>
+                <div class="flex gap-3 mt-6">
+                    <button type="button" onclick="hideModal()" class="flex-1 px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">取消</button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-blue-900 text-white rounded-xl hover:bg-blue-800 shadow-lg shadow-blue-900/20 transition-all">保存数据</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 复制提示 -->
+    <div id="toast" class="copy-toast bg-slate-900 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span id="toastMessage">已成功复制到剪贴板</span>
+    </div>
+
+    <script>
+        let db = {
+            bank: JSON.parse(localStorage.getItem('f_bank') || '[]'),
+            jiuqi: JSON.parse(localStorage.getItem('f_jiuqi') || '[]'),
+            server: JSON.parse(localStorage.getItem('f_server') || '[]')
+        };
+
+        const config = {
+            bank: {
+                title: '银行账户',
+                fields: [
+                    { key: 'name', label: '账户名称', placeholder: '公司或个人账户全称' },
+                    { key: 'account', label: '银行账号', placeholder: '请输入完整银行卡号' },
+                    { key: 'branch', label: '开户行', placeholder: '具体支行名称' }
+                ]
+            },
+            jiuqi: {
+                title: '久其账套',
+                fields: [
+                    { key: 'code', label: '账套代码', placeholder: '如：8001' },
+                    { key: 'name', label: '账套名称', placeholder: '久其系统的账套全称' }
+                ]
+            },
+            server: {
+                title: '报表服务器',
+                fields: [
+                    { key: 'address', label: '服务器地址', placeholder: 'http://192.168.x.x:8080' },
+                    { key: 'user', label: '用户名', placeholder: '登录账号' },
+                    { key: 'pass', label: '密码', placeholder: '登录密码' }
+                ]
+            }
+        };
+
+        function showModal(type) {
+            const formType = document.getElementById('formType');
+            const formFields = document.getElementById('formFields');
+            const modalTitle = document.getElementById('modalTitle');
+            
+            formType.value = type;
+            modalTitle.innerText = `添加${config[type].title}`;
+            formFields.innerHTML = config[type].fields.map(f => `
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">${f.label}</label>
+                    <input name="${f.key}" required placeholder="${f.placeholder}" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all">
+                </div>
+            `).join('');
+            
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+        }
+
+        function hideModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('modal').classList.remove('flex');
+            document.getElementById('infoForm').reset();
+        }
+
+        document.getElementById('infoForm').onsubmit = (e) => {
+            e.preventDefault();
+            const type = document.getElementById('formType').value;
+            const formData = new FormData(e.target);
+            const entry = { id: Date.now() };
+            config[type].fields.forEach(f => {
+                entry[f.key] = formData.get(f.key);
+            });
+            
+            db[type].push(entry);
+            save();
+            render();
+            hideModal();
+        };
+
+        function deleteEntry(type, id) {
+            if(confirm('确定要删除这条信息吗？')) {
+                db[type] = db[type].filter(item => item.id !== id);
+                save();
+                render();
+            }
+        }
+
+        function save() {
+            localStorage.setItem('f_bank', JSON.stringify(db.bank));
+            localStorage.setItem('f_jiuqi', JSON.stringify(db.jiuqi));
+            localStorage.setItem('f_server', JSON.stringify(db.server));
+        }
+
+        function copy(text, customMsg = '已成功复制到剪贴板') {
+            const el = document.createElement('textarea');
+            el.value = text;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+
+            const toast = document.getElementById('toast');
+            const msg = document.getElementById('toastMessage');
+            msg.innerText = customMsg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        function copyAllInfo(type, id) {
+            const item = db[type].find(i => i.id === id);
+            if (!item) return;
+            let text = "";
+            if(type === 'bank') {
+                text = `账户名称：${item.name}\n银行账号：${item.account}\n开户行：${item.branch}`;
+            } else if(type === 'server') {
+                text = `服务器地址：${item.address}\n用户名：${item.user}\n密码：${item.pass}`;
+            } else {
+                text = `账套代码：${item.code}\n账套名称：${item.name}`;
+            }
+            copy(text, '已复制全部信息');
+        }
+
+        function render() {
+            // 渲染列表通用逻辑
+            const renderSection = (type, targetId, borderClass, btnClass) => {
+                const list = db[type];
+                document.getElementById(targetId).innerHTML = list.length ? list.map(item => `
+                    <div class="glass-card p-5 rounded-2xl group relative border-t-4 ${borderClass}">
+                        <div class="absolute top-4 right-4 flex gap-2">
+                            <button onclick="copyAllInfo('${type}', ${item.id})" class="${btnClass} bg-opacity-10 px-2 py-1 rounded text-[10px] font-bold transition-all flex items-center gap-1">
+                                一键复制
+                            </button>
+                            <button onclick="deleteEntry('${type}', ${item.id})" class="text-slate-300 hover:text-red-500 transition-opacity">
+                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </div>
+                        <div class="space-y-3 mt-4">
+                            ${config[type].fields.map(f => `
+                                <div class="data-row flex items-center justify-between">
+                                    <div class="flex-1">
+                                        <p class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">${f.label}</p>
+                                        <p class="text-slate-800 font-medium break-all text-sm ${f.key === 'pass' ? 'font-mono' : ''}">${item[f.key]}</p>
+                                    </div>
+                                    <button onclick="copy('${item[f.key]}')" class="copy-btn opacity-0 ml-2 p-2 hover:bg-slate-100 text-slate-600 rounded-lg transition-all" title="复制">
+                                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('') : '<div class="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-sm">暂无记录</div>';
+            };
+
+            renderSection('bank', 'bankList', 'border-blue-900', 'text-blue-900 bg-blue-900');
+            renderSection('jiuqi', 'jiuqiList', 'border-indigo-600', 'text-indigo-600 bg-indigo-600');
+            renderSection('server', 'serverList', 'border-emerald-600', 'text-emerald-600 bg-emerald-600');
+        }
+
+        function clearAllData() {
+            if (confirm('确定要清空所有本地保存的机密信息吗？')) {
+                db = { bank: [], jiuqi: [], server: [] };
+                save();
+                render();
+            }
+        }
+
+        window.onload = render;
+    </script>
+</body>
+</html>
